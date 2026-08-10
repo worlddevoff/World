@@ -2,8 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useWorld } from '../../contexts/WorldContext';
 import { formatCurrency, formatNumber, shortWallet, uid } from '../../utils/format';
-import { WalletIcon, EyeIcon, LocateFixedIcon, Share2Icon } from 'lucide-react';
-import { X_HANDLE_AT, X_URL } from '../../config/brand';
+import {
+  WalletIcon,
+  EyeIcon,
+  LocateFixedIcon,
+  Share2Icon,
+  ExternalLinkIcon,
+} from 'lucide-react';
+import { TOKEN_TICKER, X_HANDLE_AT, X_URL } from '../../config/brand';
+import { pumpFunCoinUrl } from '../../config/pump';
 
 export function PlayerProfile() {
   const {
@@ -155,10 +162,20 @@ export function PlayerProfile() {
       </div>
 
       <a
+        href={pumpFunCoinUrl(pump.mint)}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2 text-xs font-bold text-white transition hover:bg-emerald-500"
+      >
+        Buy {TOKEN_TICKER} on pump.fun
+        <ExternalLinkIcon size={12} />
+      </a>
+
+      <a
         href={X_URL}
         target="_blank"
         rel="noopener noreferrer"
-        className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-900 py-2 text-xs font-bold text-white transition hover:bg-slate-800"
+        className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-900 py-2 text-xs font-bold text-white transition hover:bg-slate-800"
       >
         Connect on X · {X_HANDLE_AT}
       </a>
@@ -166,7 +183,7 @@ export function PlayerProfile() {
       <button
         type="button"
         onClick={shareCitizen}
-        className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2 text-xs font-bold text-white transition hover:bg-emerald-500"
+        className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 py-2 text-xs font-bold text-emerald-800 transition hover:bg-emerald-100"
       >
         <Share2Icon size={13} /> Share citizenship
       </button>

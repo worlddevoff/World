@@ -6,6 +6,10 @@ const STORAGE_KEY = 'world.tokenMint';
 
 const PUMP_PORTAL_WS_BASE = 'wss://pumpportal.fun/api/data';
 
+/** Public $WORLD mint — used for Buy links and as env fallback. */
+export const DEFAULT_TOKEN_MINT =
+  '4WZAZkbsG7nETtYEJD2cf1uGdv2zXCNghuPXZJcZpump';
+
 /** Fallback SOL/USD used to size world events from trade size. */
 export const DEFAULT_SOL_USD = Number(import.meta.env.VITE_SOL_USD) || 150;
 
@@ -37,7 +41,10 @@ export function redactSecrets(text: string): string {
 export const PUMP_PORTAL_WS = pumpPortalWsUrl();
 
 export function envTokenMint(): string {
-  return (import.meta.env.VITE_TOKEN_MINT as string | undefined)?.trim() ?? '';
+  return (
+    (import.meta.env.VITE_TOKEN_MINT as string | undefined)?.trim() ||
+    DEFAULT_TOKEN_MINT
+  );
 }
 
 export function getStoredMint(): string {
@@ -63,6 +70,12 @@ export function resolveTokenMint(override?: string | null): string {
   const fromOverride = override?.trim();
   if (fromOverride) return fromOverride;
   return getStoredMint() || envTokenMint();
+}
+
+/** pump.fun coin page for a mint (Buy CTA). */
+export function pumpFunCoinUrl(mint?: string): string {
+  const m = (mint ?? resolveTokenMint()).trim() || DEFAULT_TOKEN_MINT;
+  return `https://pump.fun/coin/${encodeURIComponent(m)}`;
 }
 
 export function shortMint(mint: string): string {

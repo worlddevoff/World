@@ -4,6 +4,7 @@ import { useWorld } from '../../contexts/WorldContext';
 import { formatCurrency, formatNumber, formatAge } from '../../utils/format';
 import { formatTokenPrice } from '../../lib/tokenPrice';
 import { TOKEN_TICKER, X_HANDLE_AT, X_URL } from '../../config/brand';
+import { pumpFunCoinUrl } from '../../config/pump';
 import {
   UsersIcon,
   Building2Icon,
@@ -14,6 +15,7 @@ import {
   Volume2Icon,
   VolumeXIcon,
   RadioIcon,
+  ExternalLinkIcon,
 } from 'lucide-react';
 import { worldSound } from '../../utils/sound';
 
@@ -154,11 +156,21 @@ export function TopBar() {
             {TOKEN_TICKER}
           </span>
           <a
+            href={pumpFunCoinUrl(pump.mint)}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={`Buy ${TOKEN_TICKER} on pump.fun`}
+            className="ml-0.5 flex items-center gap-1.5 rounded-full border border-emerald-300/40 bg-emerald-500 px-2.5 py-1 text-[11px] font-black text-white shadow-sm transition hover:bg-emerald-400"
+          >
+            Buy
+            <ExternalLinkIcon size={11} className="opacity-90" />
+          </a>
+          <a
             href={X_URL}
             target="_blank"
             rel="noopener noreferrer"
             title={`Connect on X · ${X_HANDLE_AT}`}
-            className="ml-0.5 flex items-center gap-1.5 rounded-full border border-white/15 bg-black/25 px-2.5 py-1 text-[11px] font-bold text-white/90 transition hover:border-sky-300/40 hover:bg-sky-500/20 hover:text-white"
+            className="flex items-center gap-1.5 rounded-full border border-white/15 bg-black/25 px-2.5 py-1 text-[11px] font-bold text-white/90 transition hover:border-sky-300/40 hover:bg-sky-500/20 hover:text-white"
           >
             <XIcon size={12} />
             <span className="hidden sm:inline">Connect</span>
