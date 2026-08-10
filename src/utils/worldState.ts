@@ -863,9 +863,15 @@ export function findPlacement(
   const empties = emptyRevealed(objects, revealed);
   const frontier = frontierTiles(revealed);
   // Greenery stays on solid revealed land — frontier tips read as "trees in the sky".
+  // Buildings prefer healing empty/rubble lots before expanding the frontier.
   const greeneryOnly =
     kind === 'TREE' || kind === 'FLOWER' || kind === 'PARK' || kind === 'FARM';
-  const candidates = greeneryOnly ? [...empties] : [...empties, ...frontier];
+  // Prefer infill; keep frontier as fallback when empties exist but are unusable.
+  const candidates = greeneryOnly
+    ? [...empties]
+    : empties.length > 0
+      ? [...empties, ...frontier]
+      : [...frontier];
   if (candidates.length === 0) return null;
 
   const isRoad = kind === 'ROAD';
@@ -883,6 +889,17 @@ export function findPlacement(
     const interior = isInteriorLot(objects, pos);
     const gapFill = isStreetWallGap(objects, pos);
     const wallExtend = isStreetWallExtend(objects, pos);
+
+    // Heal first: rubble / empty revealed lots beat frontier sprawl.
+    const lotKey = keyOf(pos);
+    const existing = objects.get(lotKey);
+    if (revealed.has(lotKey)) {
+      score += 70;
+      if (existing?.stage === 'rubble') score += 110;
+      else if (!existing || isReplaceable(existing)) score += 40;
+    } else {
+      score -= 55;
+    }
 
     // Street frontage for buildings; greenery wants the block interior
     if (isGreenery(kind) || kind === 'FLOWER') {
@@ -1879,8 +1896,8 @@ function collectVictims(
 
 /**
  * Pick something to remove on a sell.
- * Prefer the seller's deeds, then any standing structure, then greenery —
- * so every sell changes the map even when the wallet never built here live.
+ * Seller's deeds first → world/seed props → other players' normal builds.
+ * Other players' landmarks are last resort so dumps don't grief the skyline.
  */
 export function pickVictim(
   objects: Map<string, WorldObject>,
@@ -1891,27 +1908,110 @@ export function pickVictim(
     pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)] : null;
 
   if (ownerWallet) {
-    const ownedBuildings = collectVictims(objects, true, ownerWallet);
-    const owned = tryPick(ownedBuildings);
+    const owned = tryPick(collectVictims(objects, true, ownerWallet));
     if (owned) return owned;
-    const ownedProps = collectVictims(objects, false, ownerWallet);
-    const prop = tryPick(
-      ownedProps.filter(
+    const ownedProp = tryPick(
+      collectVictims(objects, false, ownerWallet).filter(
         (o) => o.kind === 'TREE' || o.kind === 'DECORATION' || o.kind === 'FLOWER',
       ),
     );
-    if (prop) return prop;
+    if (ownedProp) return ownedProp;
   }
 
-  const anyBuilding = tryPick(collectVictims(objects, true, undefined, true));
-  if (anyBuilding) return anyBuilding;
+  const worldish = (o: WorldObject) => o.bornBy === 'genesis' || o.bornBy === 'world';
+  const worldBuilding = tryPick(
+    collectVictims(objects, true, undefined, true).filter(worldish),
+  );
+  if (worldBuilding) return worldBuilding;
+  const worldProp = tryPick(
+    collectVictims(objects, false, undefined, true).filter(
+      (o) =>
+        worldish(o) &&
+        (o.kind === 'TREE' || o.kind === 'DECORATION' || o.kind === 'FLOWER'),
+    ),
+  );
+  if (worldProp) return worldProp;
+
+  const otherNormal = tryPick(
+    collectVictims(objects, true, undefined, true).filter(
+      (o) => isPlayerOwned(o) && o.kind !== 'LANDMARK' && o.kind !== 'TOWER',
+    ),
+  );
+  if (otherNormal) return otherNormal;
 
   const greenery = tryPick(
     collectVictims(objects, false, undefined, true).filter(
       (o) => o.kind === 'TREE' || o.kind === 'DECORATION' || o.kind === 'FLOWER',
     ),
   );
-  return greenery;
+  if (greenery) return greenery;
+
+  return tryPick(collectVictims(objects, true, undefined, true));
+}
+
+const CORE_KEEP_RADIUS = 6;
+
+/**
+ * After heavy selling, retract empty fringe land so the civilization contracts
+ * instead of staying a giant abandoned sprawl. Protects the seed core and
+ * anything near standing buildings/roads.
+ */
+export function contractEmptyFrontier(
+  objects: Map<string, WorldObject>,
+  revealed: Set<string>,
+  intensity: 1 | 2 = 1,
+): number {
+  const protect = new Set<string>();
+  for (let dy = -CORE_KEEP_RADIUS; dy <= CORE_KEEP_RADIUS; dy++) {
+    for (let dx = -CORE_KEEP_RADIUS; dx <= CORE_KEEP_RADIUS; dx++) {
+      if (Math.abs(dx) + Math.abs(dy) > CORE_KEEP_RADIUS + 1) continue;
+      const x = WORLD_CENTER.x + dx;
+      const y = WORLD_CENTER.y + dy;
+      if (inBounds(x, y)) protect.add(keyOf({ x, y }));
+    }
+  }
+
+  objects.forEach((o) => {
+    if (o.stage === 'rubble' || o.stage === 'collapsing') return;
+    const r = o.kind === 'ROAD' ? 1 : 2;
+    const cells = footprintPositions(o);
+    for (const c of cells) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          protect.add(keyOf({ x: c.x + dx, y: c.y + dy }));
+        }
+      }
+    }
+  });
+
+  type Cand = { k: string; dist: number; neigh: number };
+  const cands: Cand[] = [];
+  for (const k of revealed) {
+    if (protect.has(k)) continue;
+    const o = objects.get(k);
+    // Only retract empty lots or rubble — never pull land out from under a live build.
+    if (o && o.stage !== 'rubble') continue;
+    const [x, y] = k.split(',').map(Number);
+    let neigh = 0;
+    for (const [dx, dy] of DIRS4) {
+      if (revealed.has(keyOf({ x: x + dx, y: y + dy }))) neigh++;
+    }
+    // Fringe first (fewer neighbors).
+    if (neigh > 3) continue;
+    cands.push({ k, dist: distFromCenter({ x, y }), neigh });
+  }
+
+  cands.sort((a, b) => b.dist - a.dist || a.neigh - b.neigh);
+  const budget = Math.min(cands.length, intensity === 2 ? 32 : 16);
+  let removed = 0;
+  for (let i = 0; i < budget; i++) {
+    const { k } = cands[i];
+    revealed.delete(k);
+    objects.delete(k);
+    removed++;
+  }
+  if (removed > 0) pruneDisconnectedReveal(objects, revealed);
+  return removed;
 }
 
 /**

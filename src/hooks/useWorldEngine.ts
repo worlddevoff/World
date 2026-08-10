@@ -28,6 +28,7 @@ import {
   revealAround,
   pickVictim,
   countStandingBuildings,
+  contractEmptyFrontier,
   keyOf,
   heightFor,
   WORLD_CENTER,
@@ -38,6 +39,7 @@ import {
   ensureBridgesNear,
   sanitizeOccupancy,
   canPlaceAt,
+  evictObject,
 } from '../utils/worldState';
 import { transactionToEvent, disasterTransaction } from '../utils/eventEngine';
 import { zoneAt } from '../data/zones';
@@ -411,10 +413,15 @@ export function useWorldEngine(): WorldEngine {
         const o = objectsRef.current.get(idToKey(objectsRef.current, id));
         if (!o) return;
         o.stage = stage;
-        // a destroyed building scars the land and closes its history entry
+        // Destroyed building scars the land, then wreckage clears so lots heal.
         if (stage === 'rubble') {
           for (const p of footprintPositions(o)) addScar(p);
           markDestroyed(o.id);
+          const clearId = o.id;
+          window.setTimeout(() => {
+            evictObject(objectsRef.current, clearId);
+            syncObjects();
+          }, 2400);
         }
         syncObjects();
       }, delay);
@@ -729,6 +736,25 @@ export function useWorldEngine(): WorldEngine {
             buildings: countStandingBuildings(objectsRef.current),
           }));
         }, 400);
+
+        // Big dumps / disasters: retract empty fringe so the map contracts.
+        if (destroyed > 0 && (tx.amount >= 250 || isDisaster)) {
+          const intensity: 1 | 2 = tx.amount >= 1000 || isDisaster ? 2 : 1;
+          window.setTimeout(() => {
+            const n = contractEmptyFrontier(
+              objectsRef.current,
+              revealedRef.current,
+              intensity,
+            );
+            if (n > 0) {
+              syncRevealed();
+              syncObjects();
+              if (intensity === 2) {
+                addHistory('🌑', 'Empty districts faded as the city contracted', true);
+              }
+            }
+          }, 1800);
+        }
       }
 
       const event: WorldEvent = { ...partial, location: eventLocation ?? WORLD_CENTER };
