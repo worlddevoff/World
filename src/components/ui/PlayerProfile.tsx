@@ -101,7 +101,7 @@ export function PlayerProfile() {
       </div>
 
       <p className="mb-2 text-[10px] leading-snug text-slate-500">
-        Paste your wallet, hit Claim — we highlight your plots and zoom the map to them.
+        Paste your wallet and Claim to highlight your plots and fly the map there.
       </p>
       <div className="mb-1.5 flex gap-1.5">
         <input

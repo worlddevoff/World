@@ -181,9 +181,6 @@ export function ShareCard() {
                     style={{ fontFamily: 'Fredoka, sans-serif' }}
                   >
                     I hold $WORLD.
-                    <span className="block text-sm font-semibold text-emerald-100/90">
-                      Exchange or chain — still a citizen.
-                    </span>
                   </p>
 
                   <div className="mx-auto mb-4 grid max-w-[260px] grid-cols-2 gap-2 text-left">

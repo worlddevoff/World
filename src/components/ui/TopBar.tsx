@@ -49,44 +49,40 @@ function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; va
 
 function FeedPill({
   status,
-  mint,
   tradeCount,
-  hasApiKey,
-  detail,
 }: {
   status: string;
-  mint: string;
   tradeCount: number;
-  hasApiKey: boolean;
-  detail?: string;
 }) {
+  // Public copy only — never expose mint, API keys, or vendor internals.
   const label =
     status === 'live'
       ? tradeCount > 0
         ? 'Live'
-        : 'Waiting'
+        : 'Watching'
       : status === 'connecting'
         ? 'Connecting'
         : status === 'error'
-          ? hasApiKey
-            ? 'Feed error'
-            : 'Need API key'
+          ? 'Reconnecting'
           : status === 'no-mint'
-            ? 'Set mint'
+            ? 'Starting'
             : 'Idle';
   const color =
     status === 'live' && tradeCount > 0
       ? 'bg-emerald-400'
-      : status === 'live'
+      : status === 'live' || status === 'connecting'
         ? 'bg-amber-400'
-        : status === 'connecting'
+        : status === 'error'
           ? 'bg-amber-400'
-          : status === 'error'
-            ? 'bg-rose-400'
-            : 'bg-slate-400';
+          : 'bg-slate-400';
   const title =
-    detail ||
-    (mint ? `PumpPortal · ${mint}` : 'Paste token mint in Dev Panel to go live');
+    status === 'live' && tradeCount > 0
+      ? 'Live market activity'
+      : status === 'live'
+        ? 'Connected — waiting for the next trade'
+        : status === 'connecting'
+          ? 'Connecting to the market'
+          : 'Market feed';
   return (
     <div
       className="flex items-center gap-1.5 rounded-full border border-white/10 bg-black/25 px-2.5 py-1 text-[11px] font-bold text-white/90"
@@ -98,7 +94,7 @@ function FeedPill({
         )}
         <span className={`relative inline-flex h-2 w-2 rounded-full ${color}`} />
       </span>
-      Pump {label}
+      {label}
     </div>
   );
 }
@@ -128,13 +124,11 @@ export function TopBar() {
       : hasPrice
         ? 'bg-amber-400'
         : 'bg-slate-500';
-  const priceTitle = !pump.mint
-    ? 'Set token mint to load live price'
-    : !hasPrice
-      ? 'Waiting for first DexScreener quote…'
-      : priceLive
-        ? `Live from trades · ${pump.mint}`
-        : `Spot from DexScreener · ${pump.mint} (not a live trade)`;
+  const priceTitle = !hasPrice
+    ? `${TOKEN_TICKER} price loading…`
+    : priceLive
+      ? `${TOKEN_TICKER} live price`
+      : `${TOKEN_TICKER} market price`;
 
   const toggleMute = () => {
     worldSound.unlock();
@@ -231,13 +225,7 @@ export function TopBar() {
         >
           {muted ? <VolumeXIcon size={15} /> : <Volume2Icon size={15} />}
         </button>
-        <FeedPill
-          status={pump.status}
-          mint={pump.mint}
-          tradeCount={pump.tradeCount}
-          hasApiKey={pump.hasApiKey}
-          detail={pump.detail}
-        />
+        <FeedPill status={pump.status} tradeCount={pump.tradeCount} />
         <div
           className="flex items-center gap-2 rounded-full border border-white/10 bg-black/25 px-3 py-1.5"
           title={priceTitle}
@@ -256,7 +244,7 @@ export function TopBar() {
               {up ? <TrendingUpIcon size={13} /> : <TrendingDownIcon size={13} />}
             </span>
           )}
-          <span className="relative flex h-2 w-2" title={priceLive ? 'Trade feed fresh' : hasPrice ? 'Spot quote only' : 'No quote'}>
+          <span className="relative flex h-2 w-2" title={priceTitle}>
             {priceLive && (
               <span
                 className={`absolute inline-flex h-full w-full animate-ping rounded-full ${up ? 'bg-emerald-400' : 'bg-rose-400'} opacity-75`}
