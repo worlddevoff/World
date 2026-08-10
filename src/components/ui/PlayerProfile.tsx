@@ -15,16 +15,22 @@ export function PlayerProfile() {
     objects,
     milestones,
     stats,
+    pump,
     openShare,
   } = useWorld();
   const [walletDraft, setWalletDraft] = useState(profile.wallet);
+  const [claimNote, setClaimNote] = useState<string | null>(null);
 
   useEffect(() => {
     setWalletDraft(profile.wallet);
   }, [profile.wallet]);
 
   const myPlots = objects.filter(
-    (o) => o.bornBy === profile.wallet && o.stage !== 'rubble' && o.kind !== 'ROAD',
+    (o) =>
+      !!profile.wallet &&
+      o.bornBy === profile.wallet &&
+      o.stage !== 'rubble' &&
+      o.kind !== 'ROAD',
   ).length;
 
   const rows: [string, string][] = [
@@ -36,11 +42,36 @@ export function PlayerProfile() {
 
   const claim = () => {
     const clean = walletDraft.trim();
-    if (!clean) return;
+    if (!clean) {
+      setClaimNote('Paste your Solana wallet address first.');
+      return;
+    }
     setPlayerWallet(clean);
+    setHighlightMine(true);
+    const found = focusMyTerritory(clean);
+    setClaimNote(
+      found
+        ? `Found your builds — flying to ${shortWallet(clean)}.`
+        : 'Wallet claimed. No builds on the map yet — buy on pump.fun to place one.',
+    );
+  };
+
+  const flyToMine = () => {
+    if (!profile.wallet) {
+      setClaimNote('Claim your wallet first.');
+      return;
+    }
+    setHighlightMine(true);
+    const found = focusMyTerritory(profile.wallet);
+    setClaimNote(
+      found
+        ? `Flying to ${shortWallet(profile.wallet)}.`
+        : 'No builds for this wallet yet.',
+    );
   };
 
   const shareCitizen = () => {
+    const wallet = profile.wallet || walletDraft.trim();
     openShare({
       id: uid('share'),
       kind: 'CITIZEN',
@@ -49,9 +80,9 @@ export function PlayerProfile() {
       amount: 0,
       detail: 'Holder',
       emoji: '🌎',
-      population: stats.population,
+      population: pump.holderCount ?? stats.population,
       timestamp: Date.now(),
-      owner: profile.wallet,
+      owner: wallet || undefined,
     });
   };
 
@@ -65,32 +96,38 @@ export function PlayerProfile() {
         <WalletIcon size={15} className="text-indigo-500" />
         <h2 className="text-xs font-black uppercase tracking-wide text-slate-800">Your World</h2>
         <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[10px] text-slate-600">
-          {shortWallet(profile.wallet)}
+          {profile.wallet ? shortWallet(profile.wallet) : 'Not claimed'}
         </span>
       </div>
 
       <p className="mb-2 text-[10px] leading-snug text-slate-500">
-        Claim your wallet to highlight any plots built by on-chain swaps we see.
-        Bought on an exchange? You’re still a citizen — share that below.
+        Paste your wallet, hit Claim — we highlight your plots and zoom the map to them.
       </p>
-      <div className="mb-3 flex gap-1.5">
+      <div className="mb-1.5 flex gap-1.5">
         <input
           value={walletDraft}
-          onChange={(e) => setWalletDraft(e.target.value)}
+          onChange={(e) => {
+            setWalletDraft(e.target.value);
+            if (claimNote) setClaimNote(null);
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') claim();
           }}
-          placeholder="Your wallet address"
+          placeholder="Solana wallet address"
           spellCheck={false}
           className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 font-mono text-[10px] text-slate-800 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none"
         />
         <button
+          type="button"
           onClick={claim}
           className="shrink-0 rounded-lg bg-indigo-600 px-2.5 py-1.5 text-[11px] font-bold text-white transition hover:bg-indigo-500"
         >
           Claim
         </button>
       </div>
+      {claimNote && (
+        <p className="mb-2 text-[10px] leading-snug text-indigo-600">{claimNote}</p>
+      )}
 
       <dl className="space-y-1">
         {rows.map(([k, v]) => (
@@ -136,6 +173,7 @@ export function PlayerProfile() {
 
       <div className="mt-2 flex gap-2">
         <button
+          type="button"
           onClick={() => setHighlightMine(!highlightMine)}
           className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-bold transition ${
             highlightMine
@@ -146,9 +184,10 @@ export function PlayerProfile() {
           <EyeIcon size={13} /> {highlightMine ? 'Showing mine' : 'Highlight mine'}
         </button>
         <button
-          onClick={focusMyTerritory}
+          type="button"
+          onClick={flyToMine}
           className="flex items-center justify-center gap-1.5 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white transition hover:bg-slate-800"
-          title="Fly to my territory"
+          title="Zoom to my builds"
         >
           <LocateFixedIcon size={13} />
         </button>

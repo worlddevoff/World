@@ -495,10 +495,10 @@ export function WorldCanvas() {
       {/* hint */}
       {!isReplay && (
         <>
-          <div className="pointer-events-none absolute bottom-20 left-1/2 z-20 -translate-x-1/2 rounded-full bg-black/40 px-3 py-1 text-xs text-white/80 backdrop-blur">
+          <div className="pointer-events-none absolute bottom-20 left-1/2 z-20 hidden -translate-x-1/2 rounded-full bg-black/40 px-3 py-1 text-xs text-white/80 backdrop-blur sm:block md:bottom-6">
             drag to pan · scroll to zoom · click a building to see its owner
           </div>
-          <div className="absolute bottom-20 right-4 z-20 flex flex-col gap-1.5">
+          <div className="absolute bottom-20 right-3 z-20 flex flex-col gap-1.5 md:bottom-6 md:right-4">
             <button
               type="button"
               aria-label="Zoom in"

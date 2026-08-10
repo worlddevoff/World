@@ -15,11 +15,14 @@ function tweetFor(m: {
 }): string {
   if (m.kind === 'CITIZEN') {
     return [
-      `I'm a citizen of WORLD 🌎`,
-      `Holding ${TOKEN_TICKER}${m.owner ? ` · ${shortWallet(m.owner)}` : ''}`,
-      `Population ${formatNumber(m.population)}`,
+      `🌎 CITIZEN OF $WORLD`,
+      `I hold ${TOKEN_TICKER} — passport stamped.`,
+      m.owner && m.owner.length >= 32 ? `Wallet ${shortWallet(m.owner)}` : null,
+      m.population > 0 ? `Civilization pop ${formatNumber(m.population)}` : null,
       `${X_HANDLE_AT}`,
-    ].join('\n');
+    ]
+      .filter(Boolean)
+      .join('\n');
   }
   if (m.kind === 'OWNED') {
     return [
@@ -79,47 +82,136 @@ export function ShareCard() {
           >
             {isCitizen ? (
               <div
-                className="relative p-6 text-white"
+                className="relative overflow-hidden px-6 pb-7 pt-6 text-white"
                 style={{
-                  background: 'linear-gradient(165deg, #0f2417 0%, #14532d 50%, #166534 100%)',
+                  background:
+                    'radial-gradient(120% 80% at 50% -10%, rgba(250,204,21,0.22), transparent 55%), linear-gradient(165deg, #06140c 0%, #0c2e1a 42%, #14532d 100%)',
                 }}
               >
+                {/* Atmosphere */}
+                <motion.div
+                  aria-hidden
+                  className="pointer-events-none absolute -left-16 top-8 h-40 w-40 rounded-full bg-amber-300/15 blur-3xl"
+                  animate={{ opacity: [0.35, 0.7, 0.35], scale: [1, 1.15, 1] }}
+                  transition={{ duration: 4.5, repeat: Infinity, ease: 'easeInOut' }}
+                />
+                <motion.div
+                  aria-hidden
+                  className="pointer-events-none absolute -right-10 bottom-0 h-36 w-36 rounded-full bg-emerald-400/20 blur-3xl"
+                  animate={{ opacity: [0.25, 0.55, 0.25] }}
+                  transition={{ duration: 5.2, repeat: Infinity, ease: 'easeInOut' }}
+                />
+                {/* Shimmer sweep */}
+                <motion.div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0"
+                  style={{
+                    background:
+                      'linear-gradient(105deg, transparent 40%, rgba(253,224,71,0.14) 50%, transparent 60%)',
+                  }}
+                  animate={{ x: ['-40%', '40%'] }}
+                  transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut', repeatDelay: 1.4 }}
+                />
+                {/* Passport edge */}
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-3 rounded-2xl border border-amber-200/25"
+                  style={{ boxShadow: 'inset 0 0 0 1px rgba(16,185,129,0.15)' }}
+                />
+
                 <button
                   onClick={dismissShare}
-                  className="absolute right-3 top-3 z-10 rounded-full bg-white/15 p-1 text-white transition hover:bg-white/25"
+                  className="absolute right-3 top-3 z-10 rounded-full bg-white/10 p-1 text-white/80 transition hover:bg-white/20"
                 >
                   <XIcon size={16} />
                 </button>
-                <div className="text-center">
-                  <p className="mb-1 text-[10px] font-black uppercase tracking-[0.35em] text-emerald-300/90">
-                    Citizenship · {TOKEN_TICKER}
-                  </p>
-                  <p className="mb-3 text-lg font-black tracking-wide">WORLD</p>
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ delay: 0.15, type: 'spring' }}
-                    className="mb-2 text-5xl"
+
+                <div className="relative text-center">
+                  <motion.p
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-2 text-[10px] font-bold uppercase tracking-[0.42em] text-amber-200/90"
                   >
-                    🌎
+                    Official passport · {TOKEN_TICKER}
+                  </motion.p>
+
+                  <motion.h2
+                    initial={{ opacity: 0, scale: 0.92 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.05, type: 'spring', stiffness: 260, damping: 18 }}
+                    className="mb-1 text-[2.75rem] leading-none tracking-tight text-white"
+                    style={{ fontFamily: '"Archivo Black", Fredoka, sans-serif' }}
+                  >
+                    $WORLD
+                  </motion.h2>
+
+                  <motion.div
+                    initial={{ scale: 0, rotate: -12 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ delay: 0.12, type: 'spring', stiffness: 320, damping: 16 }}
+                    className="relative mx-auto mb-3 mt-3 flex h-24 w-24 items-center justify-center"
+                  >
+                    <span
+                      className="absolute inset-0 rounded-full"
+                      style={{
+                        background:
+                          'conic-gradient(from 210deg, #fde68a, #14532d, #6ee7b7, #fbbf24, #fde68a)',
+                        padding: 2,
+                        opacity: 0.95,
+                      }}
+                    />
+                    <span className="absolute inset-[3px] rounded-full bg-[#0a1f14]" />
+                    <span className="relative text-5xl drop-shadow-[0_4px_12px_rgba(0,0,0,0.45)]">
+                      🌎
+                    </span>
                   </motion.div>
-                  <h2 className="mb-1 text-2xl font-black leading-tight">Citizen</h2>
-                  <p className="mb-4 text-sm font-semibold text-emerald-100">
-                    I hold $WORLD — wherever I bought it
+
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-amber-300/40 bg-amber-400/15 px-3 py-1 text-[11px] font-black uppercase tracking-[0.22em] text-amber-100"
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-300 shadow-[0_0_8px_rgba(252,211,77,0.9)]" />
+                    Verified citizen
+                  </motion.div>
+
+                  <p
+                    className="mb-5 text-lg font-black leading-snug text-white"
+                    style={{ fontFamily: 'Fredoka, sans-serif' }}
+                  >
+                    I hold $WORLD.
+                    <span className="block text-sm font-semibold text-emerald-100/90">
+                      Exchange or chain — still a citizen.
+                    </span>
                   </p>
-                  <div className="mx-auto mb-3 grid max-w-[240px] gap-1.5 rounded-xl border border-white/15 bg-black/25 px-3 py-2.5 text-left text-xs">
-                    <div className="flex justify-between gap-2">
-                      <span className="text-white/55">Wallet</span>
-                      <span className="font-mono font-bold">
-                        {shareMoment.owner ? shortWallet(shareMoment.owner) : 'you'}
-                      </span>
+
+                  <div className="mx-auto mb-4 grid max-w-[260px] grid-cols-2 gap-2 text-left">
+                    <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2.5">
+                      <p className="text-[9px] font-bold uppercase tracking-wider text-white/45">
+                        Wallet
+                      </p>
+                      <p className="truncate font-mono text-sm font-bold text-amber-50">
+                        {shareMoment.owner &&
+                        shareMoment.owner !== '7xKQ9d2' &&
+                        shareMoment.owner !== 'citizen'
+                          ? shortWallet(shareMoment.owner)
+                          : 'Holder'}
+                      </p>
                     </div>
-                    <div className="flex justify-between gap-2">
-                      <span className="text-white/55">Population</span>
-                      <span className="font-bold">{formatNumber(shareMoment.population)}</span>
+                    <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2.5">
+                      <p className="text-[9px] font-bold uppercase tracking-wider text-white/45">
+                        Population
+                      </p>
+                      <p className="text-sm font-black text-white">
+                        {shareMoment.population > 0
+                          ? formatNumber(shareMoment.population)
+                          : '—'}
+                      </p>
                     </div>
                   </div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-emerald-300/80">
+
+                  <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-emerald-200/85">
                     {X_HANDLE_AT}
                   </p>
                 </div>
@@ -247,18 +339,32 @@ export function ShareCard() {
               </div>
             )}
 
-            <div className="flex gap-2 bg-white p-3">
+            <div
+              className={`flex gap-2 p-3 ${
+                isCitizen
+                  ? 'bg-[#06140c]'
+                  : 'bg-white'
+              }`}
+            >
               <button
                 onClick={dismissShare}
-                className="flex-1 rounded-xl bg-slate-100 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-200"
+                className={`flex-1 rounded-xl py-2.5 text-sm font-bold transition ${
+                  isCitizen
+                    ? 'bg-white/10 text-white/85 hover:bg-white/15'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
               >
                 Close
               </button>
               <button
                 onClick={onShareToX}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-slate-900 py-2.5 text-sm font-bold text-white transition hover:bg-slate-800"
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-black transition ${
+                  isCitizen
+                    ? 'bg-gradient-to-r from-amber-300 to-yellow-200 text-[#0a1f14] shadow-[0_0_24px_rgba(250,204,21,0.35)] hover:from-amber-200 hover:to-yellow-100'
+                    : 'bg-slate-900 text-white hover:bg-slate-800'
+                }`}
               >
-                <Share2Icon size={15} /> Share to X
+                <Share2Icon size={15} /> {isCitizen ? 'Flex on X' : 'Share to X'}
               </button>
             </div>
           </motion.div>

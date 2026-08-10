@@ -134,7 +134,8 @@ export interface WorldEngine {
     mode?: 'nudge' | 'center' | 'follow',
     opts?: { wallet?: string; zoom?: number },
   ) => void;
-  focusMyTerritory: () => void;
+  /** Fly to builds for the claimed wallet (or an override address). */
+  focusMyTerritory: (wallet?: string) => boolean;
   scars: Scar[];
   buildLog: BuildLogEntry[];
   replayTime: number | null;
@@ -220,6 +221,7 @@ export function useWorldEngine(): WorldEngine {
     const clean = wallet.trim();
     if (!clean) return;
     savePlayerWallet(clean);
+    profileRef.current = { ...profileRef.current, wallet: clean };
     setProfile((p) => ({ ...p, wallet: clean }));
   }, []);
   const [timeOfDay, setTimeOfDay] = useState(estDayFraction);
@@ -330,15 +332,43 @@ export function useWorldEngine(): WorldEngine {
     [],
   );
 
-  const focusMyTerritory = useCallback(() => {
-    const mine = uniqueObjects(objectsRef.current).filter(
-      (o) => o.bornBy === profileRef.current.wallet && o.stage !== 'rubble',
-    );
-    if (mine.length === 0) return;
-    const cx = mine.reduce((s, o) => s + o.pos.x + (o.span?.x ?? 0) * 0.5, 0) / mine.length;
-    const cy = mine.reduce((s, o) => s + o.pos.y + (o.span?.y ?? 0) * 0.5, 0) / mine.length;
-    focusOn({ x: Math.round(cx), y: Math.round(cy) }, 'center');
-  }, [focusOn]);
+  const focusMyTerritory = useCallback(
+    (wallet?: string): boolean => {
+      const target = (wallet ?? profileRef.current.wallet).trim();
+      if (!target) return false;
+      const mine = uniqueObjects(objectsRef.current).filter(
+        (o) =>
+          o.bornBy === target &&
+          o.stage !== 'rubble' &&
+          o.kind !== 'ROAD' &&
+          o.kind !== 'DECORATION',
+      );
+      // Prefer real buildings; fall back to any non-road plot from that wallet.
+      const plots =
+        mine.length > 0
+          ? mine
+          : uniqueObjects(objectsRef.current).filter(
+              (o) =>
+                o.bornBy === target &&
+                o.stage !== 'rubble' &&
+                o.kind !== 'ROAD',
+            );
+      if (plots.length === 0) return false;
+      const cx =
+        plots.reduce((s, o) => s + o.pos.x + (o.span?.x ?? 0) * 0.5, 0) /
+        plots.length;
+      const cy =
+        plots.reduce((s, o) => s + o.pos.y + (o.span?.y ?? 0) * 0.5, 0) /
+        plots.length;
+      focusOn(
+        { x: Math.round(cx), y: Math.round(cy) },
+        'follow',
+        { wallet: target, zoom: plots.length === 1 ? 2.4 : 2.1 },
+      );
+      return true;
+    },
+    [focusOn],
+  );
 
   // ----- transient event pings (coin drop + ghost) -----
   const addPing = useCallback((ping: EventPing) => {
@@ -1060,11 +1090,12 @@ const PLAYER_WALLET_KEY = 'world.playerWallet';
 function loadPlayerWallet(): string {
   try {
     const w = localStorage.getItem(PLAYER_WALLET_KEY)?.trim();
-    if (w) return w;
+    // Ignore the old demo placeholder that used to ship as a fake default.
+    if (w && w !== '7xKQ9d2') return w;
   } catch {
     /* ignore */
   }
-  return '7xKQ9d2';
+  return '';
 }
 
 function savePlayerWallet(wallet: string): void {
