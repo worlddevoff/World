@@ -5,6 +5,7 @@ import type {
   WorldObject,
   WorldObjectKind,
   GridPos,
+  ZoneId,
 } from '../types/world';
 import {
   zoneAt,
@@ -1752,22 +1753,24 @@ function placeStreetFurniture(
   paved: GridPos[],
   meta: InfraMeta,
 ): void {
-  paved.forEach((road, i) => {
+  paved.forEach((pos, i) => {
+    const roadObj = liveAt(objects, pos.x, pos.y);
+    const variant = roadObj?.kind === 'ROAD' ? roadObj.variant : undefined;
     const cls =
-      road.variant === MAIN_STREET_VARIANT
+      variant === MAIN_STREET_VARIANT
         ? 'main'
-        : road.variant === ARTERIAL_VARIANT
+        : variant === ARTERIAL_VARIANT
           ? 'avenue'
-          : streetClassAt(road.x, road.y) ?? 'side';
-    const zone = zoneAt(road);
+          : streetClassAt(pos.x, pos.y) ?? 'side';
+    const zone = zoneAt(pos);
     const downtown = zone === 'city';
     const residential = zone === 'village';
     // Side streets: every other curb (every curb downtown); avenues/main always
     if (cls === 'side' && !downtown && i % 2 !== 0) return;
-    if (isWater(road.x, road.y)) return;
+    if (isWater(pos.x, pos.y)) return;
 
     const flanks = DIRS4
-      .map(([dx, dy]) => ({ x: road.x + dx, y: road.y + dy }))
+      .map(([dx, dy]) => ({ x: pos.x + dx, y: pos.y + dy }))
       .filter(
         (p) =>
           inBounds(p.x, p.y) &&
