@@ -8,7 +8,6 @@ import { ObjectInspector } from './ObjectInspector';
 import { EventPings } from './EventPings';
 import { DistrictAmbience } from './DistrictAmbience';
 import { DisasterOverlay, Birds } from './effects';
-import { MilestoneCelebration } from './MilestoneCelebration';
 import { snapshotAt } from '../../utils/replay';
 import { objectDepth, gridToScreen } from '../../utils/iso';
 import { WORLD_CENTER } from '../../data/zones';
@@ -78,7 +77,6 @@ export function WorldCanvas() {
     activeDisaster,
     spectatorMode,
     pauseSpectator,
-    activeEgg,
   } = useWorld();
 
   // In replay mode, reconstruct the world as it stood at `replayTime`.
@@ -466,7 +464,6 @@ export function WorldCanvas() {
       />
 
       <DisasterOverlay disaster={activeDisaster} />
-      {!isReplay && <MilestoneCelebration egg={activeEgg} />}
 
       {!isReplay && <ObjectInspector obj={selectedObj} onClose={() => setSelectedId(null)} />}
 

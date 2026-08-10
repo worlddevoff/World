@@ -107,12 +107,25 @@ export async function fetchDexScreenerPrice(mint: string): Promise<number | null
   return (await fetchDexScreenerQuote(mint))?.priceUsd ?? null;
 }
 
-function jupBase(): string {
-  return typeof window !== 'undefined' ? '/proxy/jup' : 'https://lite-api.jup.ag';
+/** Prefer same-origin proxies (Vite + Vercel rewrites); fall back to direct APIs. */
+function jupUrls(path: string): string[] {
+  return [`/proxy/jup${path}`, `https://lite-api.jup.ag${path}`];
 }
 
-function geckoBase(): string {
-  return typeof window !== 'undefined' ? '/proxy/gecko' : 'https://api.geckoterminal.com';
+function geckoUrls(path: string): string[] {
+  return [`/proxy/gecko${path}`, `https://api.geckoterminal.com${path}`];
+}
+
+async function fetchFirstOk(urls: string[]): Promise<Response | null> {
+  for (const url of urls) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) return res;
+    } catch {
+      /* try next */
+    }
+  }
+  return null;
 }
 
 /** Token holder count — Population mirrors on-chain holders (Jupiter + Gecko). */
@@ -131,10 +144,10 @@ export async function fetchHolderCount(mint: string): Promise<number | null> {
 
 async function fetchJupiterHolderCount(mint: string): Promise<number | null> {
   try {
-    const res = await fetch(
-      `${jupBase()}/tokens/v2/search?query=${encodeURIComponent(mint)}`,
+    const res = await fetchFirstOk(
+      jupUrls(`/tokens/v2/search?query=${encodeURIComponent(mint)}`),
     );
-    if (!res.ok) return null;
+    if (!res) return null;
     const data = (await res.json()) as Array<{ id?: string; holderCount?: number }>;
     if (!Array.isArray(data) || data.length === 0) return null;
     const match =
@@ -154,10 +167,10 @@ async function fetchJupiterHolderCount(mint: string): Promise<number | null> {
 
 async function fetchGeckoHolderCount(mint: string): Promise<number | null> {
   try {
-    const res = await fetch(
-      `${geckoBase()}/api/v2/networks/solana/tokens/${encodeURIComponent(mint)}/info`,
+    const res = await fetchFirstOk(
+      geckoUrls(`/api/v2/networks/solana/tokens/${encodeURIComponent(mint)}/info`),
     );
-    if (!res.ok) return null;
+    if (!res) return null;
     const data = (await res.json()) as {
       data?: { attributes?: { holders?: { count?: number } } };
     };

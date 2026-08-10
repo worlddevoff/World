@@ -16,7 +16,6 @@ import type {
   HistoryEntry,
   ShareMoment,
   Milestone,
-  MilestoneEgg,
   PlayerProfile,
   DisasterKind,
   Season,
@@ -56,12 +55,7 @@ import {
 } from '../utils/cityLife';
 import { worldSound } from '../utils/sound';
 import { labelForObject } from '../utils/buildingLabels';
-import {
-  MILESTONE_DEFS,
-  metricValue,
-  eggKindFor,
-  taglineFor,
-} from '../data/milestones';
+import { MILESTONE_DEFS, metricValue } from '../data/milestones';
 
 const WORLD_EPOCH = Date.now(); // the world is born now and grows from one plot
 
@@ -158,7 +152,6 @@ export interface WorldEngine {
   revealed: string[];
   shareMoment: ShareMoment | null;
   milestones: Milestone[];
-  activeEgg: MilestoneEgg | null;
   submitTransaction: (tx: WorldTransaction) => void;
   triggerBuy: (amount: number, mine?: boolean) => void;
   triggerSell: (amount: number) => void;
@@ -232,7 +225,6 @@ export function useWorldEngine(): WorldEngine {
     MILESTONE_DEFS.map((m) => ({ ...m, unlocked: false })),
   );
   const unlockedRef = useRef<Set<string>>(new Set());
-  const [activeEgg, setActiveEgg] = useState<MilestoneEgg | null>(null);
   const [activeDisaster, setActiveDisaster] = useState<DisasterKind | null>(null);
   const [pings, setPings] = useState<EventPing[]>([]);
   const [focusTarget, setFocusTarget] = useState<FocusTarget | null>(null);
@@ -445,7 +437,7 @@ export function useWorldEngine(): WorldEngine {
     );
   }, []);
 
-  /** Unlock any newly crossed milestones — fireworks + share CTA. */
+  /** Unlock milestones quietly — badges + history, no share popup. */
   const checkMilestones = useCallback(
     (nextStats: WorldStats) => {
       const freshly: Milestone[] = [];
@@ -462,37 +454,10 @@ export function useWorldEngine(): WorldEngine {
       );
 
       const top = freshly[freshly.length - 1];
-      const egg: MilestoneEgg = {
-        id: top.id,
-        kind: eggKindFor(top.id),
-        emoji: top.emoji,
-        title: top.title,
-        tagline: taglineFor(top.id),
-        startedAt: Date.now(),
-      };
-      setActiveEgg(egg);
       worldSound.play('coinBig');
       addHistory(top.emoji, `${top.title} — ${top.unlockLabel}`, true);
-
-      window.setTimeout(() => {
-        setActiveEgg((cur) => (cur?.id === egg.id ? null : cur));
-      }, 4200);
-
-      window.setTimeout(() => {
-        openShare({
-          id: uid('share'),
-          kind: 'MILESTONE',
-          headline: 'MILESTONE',
-          subject: top.title,
-          amount: nextStats.volumeUsd,
-          detail: top.unlockLabel,
-          emoji: top.emoji,
-          population: nextStats.population,
-          timestamp: Date.now(),
-        });
-      }, 1600);
     },
-    [addHistory, openShare],
+    [addHistory],
   );
 
   // ----- process one transaction end-to-end -----
@@ -1099,7 +1064,6 @@ export function useWorldEngine(): WorldEngine {
     revealed,
     shareMoment,
     milestones,
-    activeEgg,
     submitTransaction,
     triggerBuy,
     triggerSell,

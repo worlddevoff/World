@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/proxy/jup/:path*",
+      "destination": "https://lite-api.jup.ag/:path*"
+    },
+    {
+      "source": "/proxy/gecko/:path*",
+      "destination": "https://api.geckoterminal.com/:path*"
+    }
+  ]
+}

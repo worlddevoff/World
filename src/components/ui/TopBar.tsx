@@ -110,6 +110,12 @@ export function TopBar() {
 
   const priceLabel = formatTokenPrice(pump.priceUsd);
   const hasPrice = pump.priceUsd != null && pump.priceUsd > 0;
+  const holdersLabel =
+    pump.holderCount != null
+      ? formatNumber(pump.holderCount)
+      : stats.population > 0
+        ? formatNumber(stats.population)
+        : '—';
   const up = pump.priceUp;
   // Only show direction after a real move — first DexScreener snapshot defaults "up" and looks fake.
   const showTrend = hasPrice && pump.lastTradeAt != null;
@@ -168,18 +174,16 @@ export function TopBar() {
             {era.emoji} {era.name}
           </motion.span>
         </div>
+        {/* Always show holders — compact on small screens */}
+        <div
+          className="flex items-center gap-1.5 rounded-full border border-white/10 bg-black/20 px-2.5 py-1 md:hidden"
+          title="Token holders"
+        >
+          <UsersIcon size={14} className="text-white/60" />
+          <span className="text-xs font-bold text-white">{holdersLabel}</span>
+        </div>
         <div className="hidden items-center gap-6 md:flex">
-          <Stat
-            icon={<UsersIcon size={18} />}
-            label="Holders"
-            value={
-              pump.holderCount != null
-                ? formatNumber(pump.holderCount)
-                : stats.population > 0
-                  ? formatNumber(stats.population)
-                  : '—'
-            }
-          />
+          <Stat icon={<UsersIcon size={18} />} label="Holders" value={holdersLabel} />
           <Stat
             icon={<Building2Icon size={18} />}
             label="Buildings"
