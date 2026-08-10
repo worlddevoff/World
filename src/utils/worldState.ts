@@ -1894,15 +1894,19 @@ function collectVictims(
   return pool;
 }
 
+export type VictimMode = 'owned' | 'soft' | 'disaster';
+
 /**
  * Pick something to remove on a sell.
- * Seller's deeds first → world/seed props → other players' normal builds.
- * Other players' landmarks are last resort so dumps don't grief the skyline.
+ * - owned/soft: seller's deeds first, then greenery — never the genesis downtown
+ *   or other players' skyline (orphan sells used to erase the whole city on load).
+ * - disaster: may hit other players' normal builds; genesis seed stays protected.
  */
 export function pickVictim(
   objects: Map<string, WorldObject>,
   buildingsOnly = true,
   ownerWallet?: string,
+  mode: VictimMode = 'soft',
 ): WorldObject | null {
   const tryPick = (pool: WorldObject[]) =>
     pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)] : null;
@@ -1918,35 +1922,41 @@ export function pickVictim(
     if (ownedProp) return ownedProp;
   }
 
-  const worldish = (o: WorldObject) => o.bornBy === 'genesis' || o.bornBy === 'world';
-  const worldBuilding = tryPick(
-    collectVictims(objects, true, undefined, true).filter(worldish),
-  );
-  if (worldBuilding) return worldBuilding;
-  const worldProp = tryPick(
+  // Soft sells with no local deeds only trim greenery — keep the map livable.
+  const greenery = tryPick(
     collectVictims(objects, false, undefined, true).filter(
       (o) =>
-        worldish(o) &&
+        (o.bornBy === 'genesis' || o.bornBy === 'world' || !isPlayerOwned(o)) &&
         (o.kind === 'TREE' || o.kind === 'DECORATION' || o.kind === 'FLOWER'),
     ),
   );
-  if (worldProp) return worldProp;
+  if (mode !== 'disaster') return greenery;
 
   const otherNormal = tryPick(
-    collectVictims(objects, true, undefined, true).filter(
+    collectVictims(objects, true, undefined, false).filter(
       (o) => isPlayerOwned(o) && o.kind !== 'LANDMARK' && o.kind !== 'TOWER',
     ),
   );
   if (otherNormal) return otherNormal;
 
-  const greenery = tryPick(
-    collectVictims(objects, false, undefined, true).filter(
-      (o) => o.kind === 'TREE' || o.kind === 'DECORATION' || o.kind === 'FLOWER',
-    ),
-  );
-  if (greenery) return greenery;
+  return greenery;
+}
 
-  return tryPick(collectVictims(objects, true, undefined, true));
+const MIN_SKYLINE = 8;
+
+/**
+ * If sells left a road-only ghost town, replant a small downtown so the first
+ * paint never sticks as empty lots. Idempotent — skips occupied cells.
+ */
+export function ensureMinimumSkyline(
+  objects: Map<string, WorldObject>,
+  revealed: Set<string>,
+): number {
+  if (countStandingBuildings(objects) >= MIN_SKYLINE) return 0;
+  const before = countStandingBuildings(objects);
+  // Re-run starter city planting; plant() already skips occupied lots.
+  seedStarterCity(objects, revealed);
+  return Math.max(0, countStandingBuildings(objects) - before);
 }
 
 const CORE_KEEP_RADIUS = 6;

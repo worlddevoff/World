@@ -26,6 +26,7 @@ import {
   ensurePlacement,
   revealAround,
   pickVictim,
+  ensureMinimumSkyline,
   countStandingBuildings,
   contractEmptyFrontier,
   keyOf,
@@ -399,18 +400,41 @@ export function useWorldEngine(): WorldEngine {
   );
 
   // ----- lifecycle: advance a specific object through its stages -----
+  const stageTimers = useRef<Set<number>>(new Set());
+  const armTimer = useCallback((fn: () => void, delay: number) => {
+    const id = window.setTimeout(() => {
+      stageTimers.current.delete(id);
+      fn();
+    }, delay);
+    stageTimers.current.add(id);
+    return id;
+  }, []);
+
+  useEffect(
+    () => () => {
+      for (const id of stageTimers.current) window.clearTimeout(id);
+      stageTimers.current.clear();
+    },
+    [],
+  );
+
   const scheduleStage = useCallback(
     (id: string, stage: WorldObject['stage'], delay: number) => {
-      window.setTimeout(() => {
+      armTimer(() => {
         const o = objectsRef.current.get(idToKey(objectsRef.current, id));
-        if (!o) return;
+        if (!o || o.id !== id) return;
+        // Don't revive / re-stage something already past this lifecycle.
+        if (o.stage === 'rubble' && stage !== 'rubble') return;
+        if (o.stage === 'collapsing' && (stage === 'warning' || stage === 'incoming')) return;
         o.stage = stage;
         // Destroyed building scars the land, then wreckage clears so lots heal.
         if (stage === 'rubble') {
           for (const p of footprintPositions(o)) addScar(p);
           markDestroyed(o.id);
           const clearId = o.id;
-          window.setTimeout(() => {
+          armTimer(() => {
+            const still = objectsRef.current.get(idToKey(objectsRef.current, clearId));
+            if (!still || still.id !== clearId) return;
             evictObject(objectsRef.current, clearId);
             syncObjects();
           }, 2400);
@@ -418,7 +442,7 @@ export function useWorldEngine(): WorldEngine {
         syncObjects();
       }, delay);
     },
-    [syncObjects, addScar, markDestroyed],
+    [syncObjects, addScar, markDestroyed, armTimer],
   );
 
   const addHistory = useCallback((emoji: string, text: string, major: boolean) => {
@@ -661,7 +685,7 @@ export function useWorldEngine(): WorldEngine {
           }
         }
       } else {
-        // DESTROY / DISASTER — every sell removes at least one structure.
+        // DESTROY / DISASTER — prefer the seller's own deeds; never erase genesis.
         const isDisaster = partial.type === 'DISASTER';
         const victims = Math.max(
           1,
@@ -669,9 +693,9 @@ export function useWorldEngine(): WorldEngine {
         );
         let destroyed = 0;
         const isQuake = isDisaster && partial.object === 'EARTHQUAKE';
+        const victimMode = isDisaster || tx.amount >= 1000 ? 'disaster' : 'soft';
         for (let i = 0; i < victims; i++) {
-          // Prefer seller's deeds; pickVictim falls back to any standing building.
-          const v = pickVictim(objectsRef.current, true, tx.wallet);
+          const v = pickVictim(objectsRef.current, true, tx.wallet, victimMode);
           if (!v) break;
           if (i === 0) eventLocation = v.pos;
           const vid = v.id;
@@ -680,13 +704,16 @@ export function useWorldEngine(): WorldEngine {
           v.stage = 'warning';
           scheduleStage(vid, 'collapsing', 200 + stagger);
           scheduleStage(vid, 'rubble', 1000 + stagger);
-          destroyed++;
+          // Greenery trims shouldn't move the Buildings counter.
+          if (v.kind !== 'TREE' && v.kind !== 'DECORATION' && v.kind !== 'FLOWER') {
+            destroyed++;
+          }
         }
         syncObjects();
         if (isDisaster) {
           setActiveDisaster(partial.object as DisasterKind);
           const hold = partial.object === 'FLOOD' ? 5200 : 3200;
-          window.setTimeout(() => setActiveDisaster(null), hold);
+          armTimer(() => setActiveDisaster(null), hold);
         }
         bumpWallet(tx.wallet, { destroyed });
         setStats((s) => ({
@@ -695,7 +722,7 @@ export function useWorldEngine(): WorldEngine {
           buildings: Math.max(0, countStandingBuildings(objectsRef.current) - destroyed),
           worldValue: Math.max(0, s.worldValue - Math.round(tx.amount * (0.8 + Math.random()))),
         }));
-        window.setTimeout(() => {
+        armTimer(() => {
           setStats((s) => ({
             ...s,
             buildings: countStandingBuildings(objectsRef.current),
@@ -705,7 +732,7 @@ export function useWorldEngine(): WorldEngine {
         // Big dumps / disasters: retract empty fringe so the map contracts.
         if (destroyed > 0 && (tx.amount >= 250 || isDisaster)) {
           const intensity: 1 | 2 = tx.amount >= 1000 || isDisaster ? 2 : 1;
-          window.setTimeout(() => {
+          armTimer(() => {
             const n = contractEmptyFrontier(
               objectsRef.current,
               revealedRef.current,
@@ -720,6 +747,19 @@ export function useWorldEngine(): WorldEngine {
             }
           }, 1800);
         }
+
+        // Heal ghost-town frames after a sell wave (roads left, skyline gone).
+        armTimer(() => {
+          const planted = ensureMinimumSkyline(objectsRef.current, revealedRef.current);
+          if (planted > 0) {
+            syncRevealed();
+            syncObjects();
+            setStats((s) => ({
+              ...s,
+              buildings: countStandingBuildings(objectsRef.current),
+            }));
+          }
+        }, 2800);
       }
 
       const event: WorldEvent = { ...partial, location: eventLocation ?? WORLD_CENTER };
@@ -818,6 +858,7 @@ export function useWorldEngine(): WorldEngine {
       clearScar,
       checkMilestones,
       openShare,
+      armTimer,
     ],
   );
 
