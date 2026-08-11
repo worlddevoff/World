@@ -5,8 +5,6 @@ import { WorldProvider } from './contexts/WorldContext';
 import { WorldCanvas } from './components/world/WorldCanvas';
 import { TopBar } from './components/ui/TopBar';
 import { LiveActivity } from './components/ui/LiveActivity';
-import { PlayerProfile } from './components/ui/PlayerProfile';
-import { Leaderboard } from './components/ui/Leaderboard';
 import { DevPanel } from './components/ui/DevPanel';
 import { WorldHistory } from './components/ui/WorldHistory';
 import { ShareCard } from './components/ui/ShareCard';
@@ -20,18 +18,6 @@ function useShowDevPanel(): boolean {
       return false;
     }
   }, []);
-}
-
-function SidePanels() {
-  return (
-    <>
-      <div className="min-h-[180px] flex-1">
-        <LiveActivity />
-      </div>
-      <PlayerProfile />
-      <Leaderboard />
-    </>
-  );
 }
 
 export function App() {
@@ -65,13 +51,15 @@ export function App() {
               className="absolute bottom-4 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/20 bg-black/55 px-4 py-2.5 text-xs font-bold text-white shadow-lg backdrop-blur md:hidden"
             >
               <PanelsTopLeftIcon size={14} />
-              Activity & wallet
+              Live activity
             </button>
           </main>
 
           {/* Desktop right rail */}
           <aside className="z-20 hidden w-80 shrink-0 flex-col gap-3 overflow-y-auto border-l border-black/20 bg-slate-50 p-3 md:flex">
-            <SidePanels />
+            <div className="min-h-0 flex-1">
+              <LiveActivity />
+            </div>
           </aside>
         </div>
 
@@ -93,7 +81,7 @@ export function App() {
               <motion.div
                 role="dialog"
                 aria-modal="true"
-                aria-label="Activity and wallet"
+                aria-label="Live activity"
                 initial={{ y: '100%' }}
                 animate={{ y: 0 }}
                 exit={{ y: '100%' }}
@@ -103,9 +91,9 @@ export function App() {
                 <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-3">
                   <div>
                     <p className="text-xs font-black uppercase tracking-wide text-slate-800">
-                      Your panel
+                      Live activity
                     </p>
-                    <p className="text-[10px] text-slate-500">Activity, wallet, leaderboard</p>
+                    <p className="text-[10px] text-slate-500">Buys, sells, and world events</p>
                   </div>
                   <button
                     type="button"
@@ -117,7 +105,7 @@ export function App() {
                   </button>
                 </div>
                 <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-                  <SidePanels />
+                  <LiveActivity />
                 </div>
               </motion.div>
             </motion.div>
