@@ -23,9 +23,11 @@ export interface PumpFeed {
   solUsd: number;
   /** Latest USD spot price for the token, or null before first quote. */
   priceUsd: number | null;
-  /** Live market cap in USD (World Value). */
+  /** Live market cap in USD. */
   marketCapUsd: number | null;
-  /** On-chain holder count (World Population). */
+  /** 24h USD volume from DexScreener when available. */
+  volume24hUsd: number | null;
+  /** On-chain holder count. */
   holderCount: number | null;
   /** True when the last price move was up. */
   priceUp: boolean;
@@ -65,6 +67,7 @@ export function usePumpPortal({ submitTransaction: _submitTransaction }: Options
   const [solUsd, setSolUsd] = useState(DEFAULT_SOL_USD);
   const [priceUsd, setPriceUsd] = useState<number | null>(null);
   const [marketCapUsd, setMarketCapUsd] = useState<number | null>(null);
+  const [volume24hUsd, setVolume24hUsd] = useState<number | null>(null);
   const [holderCount, setHolderCount] = useState<number | null>(null);
   const [priceUp, setPriceUp] = useState(false);
   const [hasApiKey, setHasApiKey] = useState(false);
@@ -72,7 +75,7 @@ export function usePumpPortal({ submitTransaction: _submitTransaction }: Options
 
   const applyQuote = useCallback((quote: TokenQuote | null) => {
     if (!quote) return;
-    const { priceUsd: next, marketCapUsd: mcap } = quote;
+    const { priceUsd: next, marketCapUsd: mcap, volume24hUsd: vol } = quote;
     if (!Number.isFinite(next) || next <= 0) return;
     const prev = priceRef.current;
     if (prev != null && next !== prev) {
@@ -85,6 +88,9 @@ export function usePumpPortal({ submitTransaction: _submitTransaction }: Options
     } else {
       setMarketCapUsd(next * 1_000_000_000);
     }
+    if (vol != null && Number.isFinite(vol) && vol > 0) {
+      setVolume24hUsd(vol);
+    }
   }, []);
 
   const setMint = useCallback((next: string) => {
@@ -94,6 +100,7 @@ export function usePumpPortal({ submitTransaction: _submitTransaction }: Options
     priceRef.current = null;
     setPriceUsd(null);
     setMarketCapUsd(null);
+    setVolume24hUsd(null);
     setHolderCount(null);
   }, []);
 
@@ -103,6 +110,7 @@ export function usePumpPortal({ submitTransaction: _submitTransaction }: Options
     priceRef.current = null;
     setPriceUsd(null);
     setMarketCapUsd(null);
+    setVolume24hUsd(null);
     setHolderCount(null);
   }, []);
 
@@ -263,6 +271,7 @@ export function usePumpPortal({ submitTransaction: _submitTransaction }: Options
     solUsd,
     priceUsd,
     marketCapUsd,
+    volume24hUsd,
     holderCount,
     priceUp,
     lastTradeAt,

@@ -7,6 +7,8 @@ export interface TokenQuote {
   priceUsd: number;
   /** Fully diluted / circulating MC in USD when available. */
   marketCapUsd: number | null;
+  /** 24h USD volume when the quote source provides it. */
+  volume24hUsd?: number | null;
 }
 
 export function formatTokenPrice(n: number | null | undefined): string {
@@ -80,6 +82,7 @@ export async function fetchDexScreenerQuote(mint: string): Promise<TokenQuote | 
         priceUsd?: string;
         fdv?: number;
         marketCap?: number;
+        volume?: { h24?: number };
         liquidity?: { usd?: number };
       }>;
     };
@@ -95,8 +98,10 @@ export async function fetchDexScreenerQuote(mint: string): Promise<TokenQuote | 
     const mcap = Number(best?.marketCap ?? best?.fdv);
     const marketCapUsd =
       Number.isFinite(mcap) && mcap > 0 ? mcap : priceUsd * PUMP_SUPPLY;
+    const vol = Number(best?.volume?.h24);
+    const volume24hUsd = Number.isFinite(vol) && vol > 0 ? vol : null;
 
-    return { priceUsd, marketCapUsd };
+    return { priceUsd, marketCapUsd, volume24hUsd };
   } catch {
     return null;
   }

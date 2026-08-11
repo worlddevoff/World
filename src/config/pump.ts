@@ -4,11 +4,9 @@
 
 const STORAGE_KEY = 'world.tokenMint';
 
-/**
- * Fallback mint when env / localStorage unset.
- * Empty until $Experiment launches — set VITE_TOKEN_MINT / TOKEN_MINT on Vercel.
- */
-export const DEFAULT_TOKEN_MINT = '';
+/** Public $RollerCT mint — Buy links + env fallback. */
+export const DEFAULT_TOKEN_MINT =
+  '2wNSnBhniBHorWTUcSTaTe65JBgYt2w5zcnAWou8pump';
 
 /** Fallback SOL/USD used to size world events from trade size. */
 export const DEFAULT_SOL_USD =

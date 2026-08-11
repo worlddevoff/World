@@ -8,8 +8,8 @@ import { shortWallet } from '../utils/format.js'
 import { applyMarketEvent, hasDatabase } from './organismStore.js'
 
 const PUMP_PORTAL_WS_BASE = 'wss://pumpportal.fun/api/data'
-/** Empty until launch — set TOKEN_MINT or VITE_TOKEN_MINT on Vercel. */
-const DEFAULT_TOKEN_MINT = ''
+/** $RollerCT mint — override with TOKEN_MINT / VITE_TOKEN_MINT on Vercel. */
+const DEFAULT_TOKEN_MINT = '2wNSnBhniBHorWTUcSTaTe65JBgYt2w5zcnAWou8pump'
 const DEFAULT_SOL_USD = 150
 
 type PumpPortalTrade = {
