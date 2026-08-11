@@ -14,16 +14,13 @@ npm run dev
 
 ## Secrets / env
 
-**Never commit API keys or put them in source files.**  
-**Never prefix secrets with `VITE_`** — Vite inlines those into the public JS bundle.
+**Never commit API keys or put them in source files.**
 
 | Variable | Where to set |
 |---|---|
-| `VITE_TOKEN_MINT` | Public CA — local `.env` or Vercel |
-| `PUMPPORTAL_API_KEY` | **Server-only** — Vercel / local `.env` (not `VITE_`) |
-| `EXPERIMENT_DEV_SECRET` | Server-only — gates sim / force_* tools |
-| `CRON_SECRET` | Server-only — required for Vercel Cron → `/api/think` |
-| `VITE_SOL_USD` | Optional public fallback (default `150`) |
+| `VITE_TOKEN_MINT` | Local `.env` or Vercel → Environment Variables |
+| `VITE_PUMPPORTAL_API_KEY` | Local `.env` or Vercel only |
+| `VITE_SOL_USD` | Optional (default `150`) |
 
 - `.env` is gitignored. Only `.env.example` (empty placeholders) is tracked.
 - On Vercel, set Production env vars in the dashboard, then redeploy.
@@ -31,7 +28,7 @@ npm run dev
 
 ## Live Pump.fun trades
 
-Set `VITE_TOKEN_MINT` + server-only `PUMPPORTAL_API_KEY`. The **server** connects to [PumpPortal](https://pumpportal.fun/) (`/api/pump-bridge`), subscribes with `subscribeTokenTrade`, and writes buys/sells into Neon. Browsers never see the API key — they poll the shared organism and DexScreener for price.
+Set the mint + PumpPortal key in env (above). The app connects to [PumpPortal](https://pumpportal.fun/), subscribes with `subscribeTokenTrade`, and maps each buy/sell into the world engine. Dev tools: `?dev=1`.
 
 ## Earth map & milestones
 

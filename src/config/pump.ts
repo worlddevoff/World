@@ -1,37 +1,50 @@
 // Pump.fun / PumpPortal launch config.
 // Set VITE_TOKEN_MINT before deploy, or paste the CA in the Dev Panel on launch day.
-// Live token-trade ingest uses server-only PUMPPORTAL_API_KEY (never VITE_).
+// Token-trade streams require a PumpPortal API key (funded wallet ≥ 0.02 SOL).
 
 const STORAGE_KEY = 'world.tokenMint';
 
-/** Public $RollerCT mint — Buy links + env fallback. */
+const PUMP_PORTAL_WS_BASE = 'wss://pumpportal.fun/api/data';
+
+/** Public $WORLD mint — used for Buy links and as env fallback. */
 export const DEFAULT_TOKEN_MINT =
-  '2wNSnBhniBHorWTUcSTaTe65JBgYt2w5zcnAWou8pump';
+  '4WZAZkbsG7nETtYEJD2cf1uGdv2zXCNghuPXZJcZpump';
 
 /** Fallback SOL/USD used to size world events from trade size. */
-export const DEFAULT_SOL_USD =
-  Number(
-    (typeof import.meta !== 'undefined' &&
-      import.meta.env &&
-      import.meta.env.VITE_SOL_USD) ||
-      150,
-  ) || 150;
+export const DEFAULT_SOL_USD = Number(import.meta.env.VITE_SOL_USD) || 150;
+
+/** PumpPortal data API key — required for subscribeTokenTrade. Never log this. */
+export function envPumpPortalApiKey(): string {
+  return (import.meta.env.VITE_PUMPPORTAL_API_KEY as string | undefined)?.trim() ?? '';
+}
+
+/** True when a key is configured (does not expose the value). */
+export function hasPumpPortalApiKey(): boolean {
+  return envPumpPortalApiKey().length > 0;
+}
+
+/** WebSocket URL including API key when present. Do not log the return value. */
+export function pumpPortalWsUrl(apiKey = envPumpPortalApiKey()): string {
+  if (!apiKey) return PUMP_PORTAL_WS_BASE;
+  return `${PUMP_PORTAL_WS_BASE}?api-key=${encodeURIComponent(apiKey)}`;
+}
 
 /** Strip secrets from any status / error string before UI or logs. */
 export function redactSecrets(text: string): string {
   return text
     .replace(/api-key=[^&\s"']+/gi, 'api-key=***')
     .replace(/VITE_PUMPPORTAL_API_KEY=\S+/gi, 'VITE_PUMPPORTAL_API_KEY=***')
-    .replace(/PUMPPORTAL_API_KEY=\S+/gi, 'PUMPPORTAL_API_KEY=***')
     .replace(/\b[a-z0-9]{80,}\b/gi, '[redacted]');
 }
 
+/** @deprecated use pumpPortalWsUrl() — kept so older imports don't break */
+export const PUMP_PORTAL_WS = pumpPortalWsUrl();
+
 export function envTokenMint(): string {
-  const fromEnv =
-    typeof import.meta !== 'undefined' && import.meta.env
-      ? (import.meta.env.VITE_TOKEN_MINT as string | undefined)?.trim()
-      : '';
-  return fromEnv || DEFAULT_TOKEN_MINT;
+  return (
+    (import.meta.env.VITE_TOKEN_MINT as string | undefined)?.trim() ||
+    DEFAULT_TOKEN_MINT
+  );
 }
 
 export function getStoredMint(): string {
@@ -59,10 +72,9 @@ export function resolveTokenMint(override?: string | null): string {
   return getStoredMint() || envTokenMint();
 }
 
-/** pump.fun coin page for a mint (Buy CTA). Board home if mint not set yet. */
+/** pump.fun coin page for a mint (Buy CTA). */
 export function pumpFunCoinUrl(mint?: string): string {
   const m = (mint ?? resolveTokenMint()).trim() || DEFAULT_TOKEN_MINT;
-  if (!m) return 'https://pump.fun';
   return `https://pump.fun/coin/${encodeURIComponent(m)}`;
 }
 

@@ -91,12 +91,12 @@ export function DevPanel() {
                   <>
                     {' '}
                     <span className="text-amber-300">
-                      Server PUMPPORTAL_API_KEY missing.
+                      PumpPortal key missing from environment.
                     </span>
                   </>
                 )}
                 {pump.hasApiKey && (
-                  <> Server ingest configured — linked wallet must hold ≥0.02 SOL.</>
+                  <> Key configured — wallet must hold ≥0.02 SOL.</>
                 )}
                 {pump.mint ? ` Watching ${shortMint(pump.mint)}.` : ''}
                 {pump.tradeCount > 0

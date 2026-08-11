@@ -1,14 +1,4 @@
 {
-  "crons": [
-    {
-      "path": "/api/think",
-      "schedule": "0 12 * * *"
-    },
-    {
-      "path": "/api/pump-bridge?holdMs=50000",
-      "schedule": "* * * * *"
-    }
-  ],
   "rewrites": [
     {
       "source": "/proxy/jup/:path*",
@@ -17,10 +7,6 @@
     {
       "source": "/proxy/gecko/:path*",
       "destination": "https://api.geckoterminal.com/:path*"
-    },
-    {
-      "source": "/((?!api/).*)",
-      "destination": "/index.html"
     }
   ]
 }

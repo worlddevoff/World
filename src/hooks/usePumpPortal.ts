@@ -2,15 +2,19 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { WorldTransaction } from '../types/world';
 import {
   DEFAULT_SOL_USD,
+  envPumpPortalApiKey,
+  hasPumpPortalApiKey,
+  pumpPortalWsUrl,
   redactSecrets,
   resolveTokenMint,
   setStoredMint,
 } from '../config/pump';
-import type { FeedStatus } from '../lib/pumpPortal';
+import { connectPumpPortal, type FeedStatus } from '../lib/pumpPortal';
 import {
   fetchDexScreenerQuote,
   fetchHolderCount,
   fetchSolUsd,
+  quoteFromTrade,
   type TokenQuote,
 } from '../lib/tokenPrice';
 
@@ -18,16 +22,14 @@ export interface PumpFeed {
   status: FeedStatus;
   detail?: string;
   mint: string;
-  /** True when the server reports PUMPPORTAL_API_KEY is configured. */
+  /** True when VITE_PUMPPORTAL_API_KEY is set (required for live token trades). */
   hasApiKey: boolean;
   solUsd: number;
   /** Latest USD spot price for the token, or null before first quote. */
   priceUsd: number | null;
-  /** Live market cap in USD. */
+  /** Live market cap in USD (World Value). */
   marketCapUsd: number | null;
-  /** 24h USD volume from DexScreener when available. */
-  volume24hUsd: number | null;
-  /** On-chain holder count. */
+  /** On-chain holder count (World Population). */
   holderCount: number | null;
   /** True when the last price move was up. */
   priceUp: boolean;
@@ -41,22 +43,7 @@ interface Options {
   submitTransaction: (tx: WorldTransaction) => void;
 }
 
-type BridgeStatusResponse = {
-  running?: boolean;
-  connected?: boolean;
-  hasKey?: boolean;
-  tradeCount?: number;
-  lastTradeAt?: number | null;
-  detail?: string;
-  lastError?: string;
-  mint?: string;
-};
-
-/**
- * Client market feed: DexScreener quotes + server PumpPortal bridge keep-alive.
- * The API key never touches the browser.
- */
-export function usePumpPortal({ submitTransaction: _submitTransaction }: Options): PumpFeed {
+export function usePumpPortal({ submitTransaction }: Options): PumpFeed {
   const [mint, setMintState] = useState(() => resolveTokenMint());
   const [status, setStatus] = useState<FeedStatus>(() =>
     resolveTokenMint() ? 'connecting' : 'no-mint',
@@ -67,15 +54,18 @@ export function usePumpPortal({ submitTransaction: _submitTransaction }: Options
   const [solUsd, setSolUsd] = useState(DEFAULT_SOL_USD);
   const [priceUsd, setPriceUsd] = useState<number | null>(null);
   const [marketCapUsd, setMarketCapUsd] = useState<number | null>(null);
-  const [volume24hUsd, setVolume24hUsd] = useState<number | null>(null);
   const [holderCount, setHolderCount] = useState<number | null>(null);
   const [priceUp, setPriceUp] = useState(false);
-  const [hasApiKey, setHasApiKey] = useState(false);
+
+  const submitRef = useRef(submitTransaction);
+  submitRef.current = submitTransaction;
+  const solUsdRef = useRef(solUsd);
+  solUsdRef.current = solUsd;
   const priceRef = useRef<number | null>(null);
 
   const applyQuote = useCallback((quote: TokenQuote | null) => {
     if (!quote) return;
-    const { priceUsd: next, marketCapUsd: mcap, volume24hUsd: vol } = quote;
+    const { priceUsd: next, marketCapUsd: mcap } = quote;
     if (!Number.isFinite(next) || next <= 0) return;
     const prev = priceRef.current;
     if (prev != null && next !== prev) {
@@ -88,9 +78,6 @@ export function usePumpPortal({ submitTransaction: _submitTransaction }: Options
     } else {
       setMarketCapUsd(next * 1_000_000_000);
     }
-    if (vol != null && Number.isFinite(vol) && vol > 0) {
-      setVolume24hUsd(vol);
-    }
   }, []);
 
   const setMint = useCallback((next: string) => {
@@ -100,7 +87,6 @@ export function usePumpPortal({ submitTransaction: _submitTransaction }: Options
     priceRef.current = null;
     setPriceUsd(null);
     setMarketCapUsd(null);
-    setVolume24hUsd(null);
     setHolderCount(null);
   }, []);
 
@@ -110,7 +96,6 @@ export function usePumpPortal({ submitTransaction: _submitTransaction }: Options
     priceRef.current = null;
     setPriceUsd(null);
     setMarketCapUsd(null);
-    setVolume24hUsd(null);
     setHolderCount(null);
   }, []);
 
@@ -173,7 +158,7 @@ export function usePumpPortal({ submitTransaction: _submitTransaction }: Options
     };
   }, [mint]);
 
-  // Keep server PumpPortal bridge warm; never receive the API key in the browser.
+  // Live trades from PumpPortal — update price + MC on every fill.
   useEffect(() => {
     if (!mint) {
       setStatus('no-mint');
@@ -181,96 +166,43 @@ export function usePumpPortal({ submitTransaction: _submitTransaction }: Options
       return;
     }
 
-    let cancelled = false;
-    let holdController: AbortController | null = null;
-
-    const applyBridge = (data: BridgeStatusResponse) => {
-      setHasApiKey(Boolean(data.hasKey));
-      if (typeof data.tradeCount === 'number') setTradeCount(data.tradeCount);
-      if (data.lastTradeAt) setLastTradeAt(data.lastTradeAt);
-      if (!data.hasKey) {
-        setStatus('error');
-        setDetail(
-          'Server PumpPortal key not configured. Price still loads from DexScreener; set PUMPPORTAL_API_KEY on the host.',
-        );
-        return;
-      }
-      if (data.connected || data.running) {
-        setStatus('live');
-        setDetail(
-          data.detail
-            ? redactSecrets(data.detail)
-            : 'server ingest listening for buys/sells',
-        );
-        return;
-      }
-      setStatus('connecting');
+    const apiKey = envPumpPortalApiKey();
+    if (!apiKey) {
+      setStatus('error');
       setDetail(
-        data.lastError
-          ? redactSecrets(data.lastError)
-          : data.detail
-            ? redactSecrets(data.detail)
-            : 'starting server ingest…',
+        'PumpPortal key not configured in environment. Price still loads from DexScreener.',
       );
-    };
+      return;
+    }
 
-    const ping = async () => {
-      holdController?.abort();
-      holdController = new AbortController();
-      try {
-        const res = await fetch('/api/pump-bridge?status=1', {
-          method: 'GET',
-          signal: holdController.signal,
-        });
-        const ctype = res.headers.get('content-type') || '';
-        if (!ctype.includes('application/json')) {
-          if (!cancelled) {
-            setStatus('error');
-            setDetail('Pump bridge API unavailable');
-            setHasApiKey(false);
-          }
-          return;
-        }
-        const data = (await res.json()) as BridgeStatusResponse;
-        if (!cancelled) applyBridge(data);
+    setTradeCount(0);
+    const disconnect = connectPumpPortal({
+      mint,
+      getSolUsd: () => solUsdRef.current,
+      wsUrl: pumpPortalWsUrl(apiKey),
+      onStatus: (s, d) => {
+        setStatus(s);
+        setDetail(d ? redactSecrets(d) : d);
+      },
+      onTrade: (tx, raw) => {
+        submitRef.current(tx);
+        setLastTradeAt(Date.now());
+        setTradeCount((n) => n + 1);
+        applyQuote(quoteFromTrade(raw, solUsdRef.current));
+      },
+    });
 
-        // Keep a serverless hold open whenever we have a key but aren't live.
-        // (running+reconnecting still needs a warm invocation — don't wait for stopped.)
-        if (data.hasKey && !data.connected) {
-          void fetch('/api/pump-bridge?holdMs=45000', { method: 'POST' }).catch(
-            () => undefined,
-          );
-        }
-      } catch (err) {
-        if (cancelled || (err instanceof DOMException && err.name === 'AbortError')) {
-          return;
-        }
-        if (!cancelled) {
-          setStatus('error');
-          setDetail('Pump bridge unreachable');
-        }
-      }
-    };
-
-    setStatus('connecting');
-    void ping();
-    const id = window.setInterval(ping, 12_000);
-    return () => {
-      cancelled = true;
-      holdController?.abort();
-      window.clearInterval(id);
-    };
-  }, [mint]);
+    return disconnect;
+  }, [mint, applyQuote]);
 
   return {
     status,
     detail,
     mint,
-    hasApiKey,
+    hasApiKey: hasPumpPortalApiKey(),
     solUsd,
     priceUsd,
     marketCapUsd,
-    volume24hUsd,
     holderCount,
     priceUp,
     lastTradeAt,

@@ -1,8 +1,5 @@
 import type { WorldTransaction } from '../types/world';
-import { redactSecrets } from '../config/pump';
-
-/** Local default so server imports do not depend on Vite client env. */
-const DEFAULT_SOL_USD = 150;
+import { DEFAULT_SOL_USD, redactSecrets } from '../config/pump';
 
 /** Raw trade message from PumpPortal `subscribeTokenTrade`. */
 export interface PumpPortalTrade {
