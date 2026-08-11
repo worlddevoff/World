@@ -218,8 +218,6 @@ export function usePumpPortal({ submitTransaction: _submitTransaction }: Options
       holdController?.abort();
       holdController = new AbortController();
       try {
-        // Status-only: avoid opening extra PumpPortal sockets from every tab.
-        // Cron + the first warm invoke own the server-side connection.
         const res = await fetch('/api/pump-bridge?status=1', {
           method: 'GET',
           signal: holdController.signal,
@@ -236,9 +234,10 @@ export function usePumpPortal({ submitTransaction: _submitTransaction }: Options
         const data = (await res.json()) as BridgeStatusResponse;
         if (!cancelled) applyBridge(data);
 
-        // If ingest is configured but not running, nudge a short warm start once.
-        if (data.hasKey && !data.running && !data.connected) {
-          void fetch('/api/pump-bridge?holdMs=15000', { method: 'POST' }).catch(
+        // Keep a serverless hold open whenever we have a key but aren't live.
+        // (running+reconnecting still needs a warm invocation — don't wait for stopped.)
+        if (data.hasKey && !data.connected) {
+          void fetch('/api/pump-bridge?holdMs=45000', { method: 'POST' }).catch(
             () => undefined,
           );
         }

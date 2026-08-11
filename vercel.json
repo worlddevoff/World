@@ -3,6 +3,10 @@
     {
       "path": "/api/think",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/pump-bridge?holdMs=50000",
+      "schedule": "* * * * *"
     }
   ],
   "rewrites": [

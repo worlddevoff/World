@@ -27,6 +27,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       (req.body as { status?: boolean }).status === true)
 
   if (statusOnly) {
+    // Touch ensure so cold instances still spin up the WS subscription.
+    ensurePumpBridge()
     return res.status(200).json(getPumpBridgeStatus())
   }
 
