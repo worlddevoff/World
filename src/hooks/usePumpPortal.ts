@@ -2,19 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { WorldTransaction } from '../types/world';
 import {
   DEFAULT_SOL_USD,
-  envPumpPortalApiKey,
-  hasPumpPortalApiKey,
-  pumpPortalWsUrl,
   redactSecrets,
   resolveTokenMint,
   setStoredMint,
 } from '../config/pump';
-import { connectPumpPortal, type FeedStatus } from '../lib/pumpPortal';
+import type { FeedStatus } from '../lib/pumpPortal';
 import {
   fetchDexScreenerQuote,
   fetchHolderCount,
   fetchSolUsd,
-  quoteFromTrade,
   type TokenQuote,
 } from '../lib/tokenPrice';
 
@@ -22,7 +18,7 @@ export interface PumpFeed {
   status: FeedStatus;
   detail?: string;
   mint: string;
-  /** True when VITE_PUMPPORTAL_API_KEY is set (required for live token trades). */
+  /** True when the server reports PUMPPORTAL_API_KEY is configured. */
   hasApiKey: boolean;
   solUsd: number;
   /** Latest USD spot price for the token, or null before first quote. */
@@ -43,7 +39,22 @@ interface Options {
   submitTransaction: (tx: WorldTransaction) => void;
 }
 
-export function usePumpPortal({ submitTransaction }: Options): PumpFeed {
+type BridgeStatusResponse = {
+  running?: boolean;
+  connected?: boolean;
+  hasKey?: boolean;
+  tradeCount?: number;
+  lastTradeAt?: number | null;
+  detail?: string;
+  lastError?: string;
+  mint?: string;
+};
+
+/**
+ * Client market feed: DexScreener quotes + server PumpPortal bridge keep-alive.
+ * The API key never touches the browser.
+ */
+export function usePumpPortal({ submitTransaction: _submitTransaction }: Options): PumpFeed {
   const [mint, setMintState] = useState(() => resolveTokenMint());
   const [status, setStatus] = useState<FeedStatus>(() =>
     resolveTokenMint() ? 'connecting' : 'no-mint',
@@ -56,11 +67,7 @@ export function usePumpPortal({ submitTransaction }: Options): PumpFeed {
   const [marketCapUsd, setMarketCapUsd] = useState<number | null>(null);
   const [holderCount, setHolderCount] = useState<number | null>(null);
   const [priceUp, setPriceUp] = useState(false);
-
-  const submitRef = useRef(submitTransaction);
-  submitRef.current = submitTransaction;
-  const solUsdRef = useRef(solUsd);
-  solUsdRef.current = solUsd;
+  const [hasApiKey, setHasApiKey] = useState(false);
   const priceRef = useRef<number | null>(null);
 
   const applyQuote = useCallback((quote: TokenQuote | null) => {
@@ -158,7 +165,7 @@ export function usePumpPortal({ submitTransaction }: Options): PumpFeed {
     };
   }, [mint]);
 
-  // Live trades from PumpPortal — update price + MC on every fill.
+  // Keep server PumpPortal bridge warm; never receive the API key in the browser.
   useEffect(() => {
     if (!mint) {
       setStatus('no-mint');
@@ -166,40 +173,93 @@ export function usePumpPortal({ submitTransaction }: Options): PumpFeed {
       return;
     }
 
-    const apiKey = envPumpPortalApiKey();
-    if (!apiKey) {
-      setStatus('error');
+    let cancelled = false;
+    let holdController: AbortController | null = null;
+
+    const applyBridge = (data: BridgeStatusResponse) => {
+      setHasApiKey(Boolean(data.hasKey));
+      if (typeof data.tradeCount === 'number') setTradeCount(data.tradeCount);
+      if (data.lastTradeAt) setLastTradeAt(data.lastTradeAt);
+      if (!data.hasKey) {
+        setStatus('error');
+        setDetail(
+          'Server PumpPortal key not configured. Price still loads from DexScreener; set PUMPPORTAL_API_KEY on the host.',
+        );
+        return;
+      }
+      if (data.connected || data.running) {
+        setStatus('live');
+        setDetail(
+          data.detail
+            ? redactSecrets(data.detail)
+            : 'server ingest listening for buys/sells',
+        );
+        return;
+      }
+      setStatus('connecting');
       setDetail(
-        'PumpPortal key not configured in environment. Price still loads from DexScreener.',
+        data.lastError
+          ? redactSecrets(data.lastError)
+          : data.detail
+            ? redactSecrets(data.detail)
+            : 'starting server ingest…',
       );
-      return;
-    }
+    };
 
-    setTradeCount(0);
-    const disconnect = connectPumpPortal({
-      mint,
-      getSolUsd: () => solUsdRef.current,
-      wsUrl: pumpPortalWsUrl(apiKey),
-      onStatus: (s, d) => {
-        setStatus(s);
-        setDetail(d ? redactSecrets(d) : d);
-      },
-      onTrade: (tx, raw) => {
-        submitRef.current(tx);
-        setLastTradeAt(Date.now());
-        setTradeCount((n) => n + 1);
-        applyQuote(quoteFromTrade(raw, solUsdRef.current));
-      },
-    });
+    const ping = async () => {
+      holdController?.abort();
+      holdController = new AbortController();
+      try {
+        // Status-only: avoid opening extra PumpPortal sockets from every tab.
+        // Cron + the first warm invoke own the server-side connection.
+        const res = await fetch('/api/pump-bridge?status=1', {
+          method: 'GET',
+          signal: holdController.signal,
+        });
+        const ctype = res.headers.get('content-type') || '';
+        if (!ctype.includes('application/json')) {
+          if (!cancelled) {
+            setStatus('error');
+            setDetail('Pump bridge API unavailable');
+            setHasApiKey(false);
+          }
+          return;
+        }
+        const data = (await res.json()) as BridgeStatusResponse;
+        if (!cancelled) applyBridge(data);
 
-    return disconnect;
-  }, [mint, applyQuote]);
+        // If ingest is configured but not running, nudge a short warm start once.
+        if (data.hasKey && !data.running && !data.connected) {
+          void fetch('/api/pump-bridge?holdMs=15000', { method: 'POST' }).catch(
+            () => undefined,
+          );
+        }
+      } catch (err) {
+        if (cancelled || (err instanceof DOMException && err.name === 'AbortError')) {
+          return;
+        }
+        if (!cancelled) {
+          setStatus('error');
+          setDetail('Pump bridge unreachable');
+        }
+      }
+    };
+
+    setStatus('connecting');
+    void ping();
+    const id = window.setInterval(ping, 12_000);
+    return () => {
+      cancelled = true;
+      holdController?.abort();
+      window.clearInterval(id);
+    };
+  }, [mint]);
 
   return {
     status,
     detail,
     mint,
-    hasApiKey: hasPumpPortalApiKey(),
+    hasApiKey,
     solUsd,
     priceUsd,
     marketCapUsd,

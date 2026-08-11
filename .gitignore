@@ -32,3 +32,5 @@ secrets*
 *.njsproj
 *.sln
 *.sw?
+.vercel
+.env*

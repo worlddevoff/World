@@ -1,4 +1,10 @@
 {
+  "crons": [
+    {
+      "path": "/api/think",
+      "schedule": "0 12 * * *"
+    }
+  ],
   "rewrites": [
     {
       "source": "/proxy/jup/:path*",
@@ -7,6 +13,10 @@
     {
       "source": "/proxy/gecko/:path*",
       "destination": "https://api.geckoterminal.com/:path*"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
     }
   ]
 }
